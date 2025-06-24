@@ -34,7 +34,7 @@ class LocalDatabase {
   async updateNotes(notes: CareNote[]): Promise<void> {
     try {
       const existingNotes = await this.getAllNotes();
-      const serverNoteIds = new Set(notes.map((note) => note.id));
+      const serverNoteIds = new Set(notes?.map((note) => note.id));
       const localOnlyNotes = existingNotes.filter((note) => !serverNoteIds.has(note.id));
 
       const combinedNotes = [...notes, ...localOnlyNotes];
