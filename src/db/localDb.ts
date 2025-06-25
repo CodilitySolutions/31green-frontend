@@ -8,10 +8,14 @@ class LocalDatabase {
     this.db = new PouchDB<CareNote>("care-notes");
   }
 
-  async getAllNotes(): Promise<CareNote[]> {
+  async getAllNotes(options?: { unsynced?: boolean }): Promise<CareNote[]> {
     try {
       const result = await this.db.allDocs({ include_docs: true, descending: true });
-      return result.rows.map((row) => row.doc!) as CareNote[];
+      let notes = result.rows.map((row) => row.doc!) as CareNote[];
+      if (options?.unsynced) {
+        notes = notes.filter((note) => !note.isSynced);
+      }
+      return notes;
     } catch (error) {
       console.error("Error reading from PouchDB:", error);
       return [];
@@ -23,7 +27,10 @@ class LocalDatabase {
       const existingNotes = await this.getAllNotes();
       const noteExists = existingNotes.some((existingNote) => existingNote.id === note.id);
       if (!noteExists) {
-        await this.db.put({ _id: String(new Date().toISOString()), ...note });
+        await this.db.put({
+          _id: String(new Date().toISOString()),
+          ...note,
+        });
       }
     } catch (error) {
       console.error("Error adding note to PouchDB:", error);
@@ -33,20 +40,21 @@ class LocalDatabase {
 
   async updateNotes(notes: CareNote[]): Promise<void> {
     try {
-      const existingNotes = await this.getAllNotes();
-      const serverNoteIds = new Set(notes?.map((note) => note.id));
-      const localOnlyNotes = existingNotes.filter((note) => !serverNoteIds.has(note.id));
-
-      const combinedNotes = [...notes, ...localOnlyNotes];
-      for (const note of combinedNotes) {
-        const docId = String(new Date(note.dateTime).toISOString());
-        await this.db.put({ _id: docId, ...note });
+      for (const note of notes) {
+        const docId = `note:${note.id}`;
+  
+        await this.db.put({
+          ...note,
+          _id: docId,
+          isSynced: true,
+        });
       }
     } catch (error) {
       console.error("Error updating PouchDB:", error);
       throw error;
     }
   }
+  
 
   async getRecentNotes(limit = 5): Promise<CareNote[]> {
     try {
@@ -122,8 +130,7 @@ class LocalDatabase {
       }
 
       const sortedByDate = notes.sort(
-        (a, b) =>
-          new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
+        (a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
       );
       return {
         totalNotes: notes.length,

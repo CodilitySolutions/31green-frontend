@@ -11,6 +11,7 @@ export interface CareNote {
   dateTime: string
   content: string
   authorName: string
+  isSynced?: boolean
 }
 
 /**
@@ -50,38 +51,61 @@ const initialState: CareNotesState = {
  * 2. Store in local database
  * 3. Update Redux with 5 most recent notes
  */
-export const syncDataFromServer = createAsyncThunk("careNotes/syncFromServer", async (_, { rejectWithValue }) => {
-  try {
-    // 1. Fetch notes from server via API layer
-    const serverNotes = await careNotesApi.getCareNotes()
-
-    // 2. Write fetched notes to local offline database
-    await localDb.updateNotes(serverNotes)
-
-    // 3. Get the 5 most recent notes from local DB
-    const recentNotes = await localDb.getRecentNotes(5)
-
-    return {
-      notes: recentNotes,
-      syncTime: Date.now(),
-    }
-  } catch (error) {
-    console.warn("Server sync failed, loading from local database:", error)
-
+export const syncDataFromServer = createAsyncThunk(
+  "careNotes/syncFromServer",
+  async (_, { rejectWithValue }) => {
     try {
-      // Fallback to local database if server is unavailable
-      const localNotes = await localDb.getRecentNotes(5)
-      return {
-        notes: localNotes,
-        syncTime: Date.now(),
-        isOffline: true,
+      // 🟢 STEP 1: Get pending notes from local database
+      const pendingNotes = await localDb.getAllNotes({ unsynced: true });
+      if (pendingNotes.length > 0) {
+        console.log(`Found ${pendingNotes.length} pending notes, syncing...`);
+
+        for (const note of pendingNotes) {
+          if (!note || note.isSynced) {
+            continue;
+          }
+          try {
+            await careNotesApi.createCareNote(note);
+          } catch (error) {
+            console.error(`❌ Failed to sync note ${note.id}`, error);
+            // Optional: continue or reject here
+          }
+        }
       }
-    } catch (localError) {
-      console.error("Failed to load from local database:", localError)
-      return rejectWithValue("Failed to load care notes")
+
+      // 🟢 STEP 2: Get fresh notes from the server
+      const serverNotes = await careNotesApi.getCareNotes();
+      const sortedNotes = serverNotes.sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
+      // 🟢 STEP 3: Clear old local data
+      await localDb.clearAll();
+
+      // 🟢 STEP 4: Save fresh server data to local database
+      await localDb.updateNotes(sortedNotes);
+
+      // 🟢 STEP 5: Get recent notes for state
+      const recentNotes = await localDb.getRecentNotes(5);
+
+      return {
+        notes: recentNotes,
+        syncTime: Date.now(),
+      };
+    } catch (error) {
+      console.warn("Server sync failed, loading from local database:", error);
+      try {
+        const localNotes = await localDb.getRecentNotes(5);
+        return {
+          notes: localNotes,
+          syncTime: Date.now(),
+          isOffline: true,
+        };
+      } catch (localError) {
+        console.error("Failed to load from local database:", localError);
+        return rejectWithValue("Failed to load care notes");
+      }
     }
   }
-})
+);
+
 
 /**
  * Async thunk for adding a new care note
@@ -91,43 +115,35 @@ export const addCareNoteAsync = createAsyncThunk(
   "careNotes/addNote",
   async (noteData: CreateCareNoteRequest, { rejectWithValue }) => {
     try {
-      // Generate a temporary ID for the note
-      const tempId = Date.now()
+      const tempId = Date.now();
       const newNote: CareNote = {
         ...noteData,
         id: tempId,
-      }
+      };
 
-      // 1. Save to local database first (offline-first approach)
-      await localDb.addNote(newNote)
-
-      // 2. Try to save to server
-      let serverNote: CareNote
+      // 🟢 Try server first
       try {
-        serverNote = await careNotesApi.createCareNote(noteData)
-
-        // Update local database with server-generated ID if different
-        if (serverNote.id !== tempId) {
-          await localDb.updateNoteId(tempId, serverNote.id)
-        }
+        const serverNote = await careNotesApi.createCareNote(noteData);
+        // Server succeeded ➔ isSynced: true
+        const savedNote = { ...serverNote, isSynced: true };
+        await localDb.addNote(savedNote);
+        const recentNotes = await localDb.getRecentNotes(5);
+        return { notes: recentNotes, newNote: savedNote };
       } catch (serverError) {
-        console.warn("Failed to save to server, keeping local copy:", serverError)
-        serverNote = newNote // Use local note if server fails
-      }
-
-      // 3. Get updated recent notes from local database
-      const recentNotes = await localDb.getRecentNotes(5)
-
-      return {
-        notes: recentNotes,
-        newNote: serverNote,
+        console.warn("❌ Offline or server error, saving local copy:", serverError);
+        // Offline ➔ isSynced: false
+        const offlineNote = { ...newNote, isSynced: false };
+        await localDb.addNote(offlineNote);
+        const recentNotes = await localDb.getRecentNotes(5);
+        return { notes: recentNotes, newNote: offlineNote };
       }
     } catch (error) {
-      console.error("Failed to add care note:", error)
-      return rejectWithValue("Failed to save care note")
+      console.error("Failed to add care note:", error);
+      return rejectWithValue("Failed to save care note");
     }
-  },
-)
+  }
+);
+
 
 /**
  * Care notes slice using Redux Toolkit

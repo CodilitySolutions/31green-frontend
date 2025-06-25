@@ -71,8 +71,8 @@ const CareNoteList: React.FC<CareNoteListProps> = ({ onAddNote }) => {
               className="filter-select"
             >
               <option value="all">All Residents</option>
-              {uniqueResidents.map((resident) => (
-                <option key={resident} value={resident}>
+              {uniqueResidents.map((resident, index) => (
+                <option key={resident + index} value={resident}>
                   {resident}
                 </option>
               ))}

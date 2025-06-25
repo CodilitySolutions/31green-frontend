@@ -18,7 +18,7 @@ class CareNotesAPI {
    */
   async getCareNotes(): Promise<CareNote[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/care-notes?tenant_id=2`, {
+      const response = await fetch(`${this.baseUrl}/care-notes`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
