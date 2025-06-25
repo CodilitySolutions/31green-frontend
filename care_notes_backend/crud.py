@@ -21,7 +21,13 @@ def get_note(db: Session, note_id: int):
     # Query the CareNote table and return the first record that matches the given ID
     return db.query(models.CareNote).filter(models.CareNote.id == note_id).first()
 
-# Function to retrieve multiple care notes with pagination support
-def get_notes(db: Session, skip: int = 0, limit: int = 10):
-    # Query the CareNote table, skipping 'skip' records and limiting to 'limit' records
-    return db.query(models.CareNote).offset(skip).limit(limit).all()
+# Function to retrieve recent 5 note
+def get_notes(db: Session, skip: int = 0, limit: int = 5):
+    return (
+        db.query(models.CareNote)
+        .order_by(models.CareNote.dateTime.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+

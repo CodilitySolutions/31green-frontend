@@ -285,12 +285,18 @@ localStorage.setItem('debug', 'true');
 This project is for demonstration purposes as part of a coding exercise.
 
 
-//////////////////**********************///////////////////////
-Backend code Run
 
+# Backend code Run
+\`\`\`bash
 python3 -m venv venv
+\`\`\`
+\`\`\`bash
 source venv/bin/activate
-
+\`\`\`
+\`\`\`bash
 pip install -r requirements.txt
-
+\`\`\`
+\`\`\`bash
 uvicorn care_notes_backend.main:app --host 0.0.0.0 --port 8000 --reload
+\`\`\`
+
