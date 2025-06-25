@@ -283,3 +283,14 @@ localStorage.setItem('debug', 'true');
 ## 📄 License
 
 This project is for demonstration purposes as part of a coding exercise.
+
+
+//////////////////**********************///////////////////////
+Backend code Run
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+uvicorn care_notes_backend.main:app --host 0.0.0.0 --port 8000 --reload
