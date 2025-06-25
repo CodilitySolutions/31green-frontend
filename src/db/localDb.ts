@@ -114,16 +114,28 @@ class LocalDatabase {
 
   async clearAll(): Promise<void> {
     try {
-      const allDocs = await this.db.allDocs();
-      const deletePromises = allDocs.rows.map((doc) =>
-        this.db.remove(doc.id, doc.value.rev!)
-      );
-      await Promise.all(deletePromises);
+      const allDocs = await this.db.allDocs({ include_docs: true });
+      for (const row of allDocs.rows) {
+        if (row.doc && row.doc._id && row.doc._rev) {
+          try {
+            await this.db.remove(row.doc._id, row.doc._rev);
+          } catch (error) {
+            if ((error as any).status === 409) {
+              console.warn(`Conflict deleting ${row.doc._id}, ignoring...`);
+              // Optionally refetch and delete again if needed
+            } else {
+              console.warn("warnning removing doc:", error);
+              throw error;
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error("Error clearing PouchDB:", error);
       throw error;
     }
   }
+
 
   async getStats(): Promise<{
     totalNotes: number;
