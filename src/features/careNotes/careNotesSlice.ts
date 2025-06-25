@@ -75,12 +75,11 @@ export const syncDataFromServer = createAsyncThunk(
 
       // 🟢 STEP 2: Get fresh notes from the server
       const serverNotes = await careNotesApi.getCareNotes();
-      const sortedNotes = serverNotes.sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
       // 🟢 STEP 3: Clear old local data
       await localDb.clearAll();
 
       // 🟢 STEP 4: Save fresh server data to local database
-      await localDb.updateNotes(sortedNotes);
+      await localDb.updateNotes(serverNotes);
 
       // 🟢 STEP 5: Get recent notes for state
       const recentNotes = await localDb.getRecentNotes(5);
