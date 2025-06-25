@@ -287,19 +287,27 @@ This project is for demonstration purposes as part of a coding exercise.
 
 
 # Backend code Run
-\`\`\`bash
+create the virtual enviorment
+
+```bash
 python3 -m venv venv
-\`\`\`
+```
 
-\`\`\`bash
+activate this enviorment
+
+```bash
 source venv/bin/activate
-\`\`\`
+```
 
-\`\`\`bash
+Install dependencies
+
+```bash
 pip install -r requirements.txt
-\`\`\`
+```
 
-\`\`\`bash
+Run FastAPI server
+
+```bash
 uvicorn care_notes_backend.main:app --host 0.0.0.0 --port 8000 --reload
-\`\`\`
+```
 
