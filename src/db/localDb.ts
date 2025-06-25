@@ -40,21 +40,37 @@ class LocalDatabase {
 
   async updateNotes(notes: CareNote[]): Promise<void> {
     try {
-      for (const note of notes) {
+      const existingNotes = await this.getAllNotes();
+      const serverNoteIds = new Set(notes.map((note) => note.id));
+      const localOnlyNotes = existingNotes.filter((note) => !serverNoteIds.has(note.id));
+
+      const combinedNotes = [...notes, ...localOnlyNotes];
+      for (const note of combinedNotes) {
         const docId = `note:${note.id}`;
-  
-        await this.db.put({
-          ...note,
-          _id: docId,
-          isSynced: true,
-        });
+        try {
+          const existing = await this.db.get(docId);
+          await this.db.put({ ...note, _id: docId, _rev: existing._rev, isSynced: true }); // ✅ _rev attach
+        } catch (error: any) {
+          if (error.status === 404) {
+            // New document
+            await this.db.put({ _id: docId, ...note, isSynced: true });
+          }
+          //  else if (error.status === 409) {
+          //   // Conflict: refetch and retry
+          //   const fresh = await this.db.get(docId);
+          //   await this.db.put({ ...note, _id: docId, _rev: fresh._rev, isSynced: true });
+          // } else {
+          //   console.error(`Error updating note ${note.id}:`, error);
+          // }
+        }
       }
     } catch (error) {
       console.error("Error updating PouchDB:", error);
       throw error;
     }
   }
-  
+
+
 
   async getRecentNotes(limit = 5): Promise<CareNote[]> {
     try {
